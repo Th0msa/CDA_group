@@ -63,6 +63,18 @@ def barplot_vis(X, columns, encoder_dict):
         plt.show()
 
 
+def distr_plot(X_infected, X_benign, columns):
+    for col in columns:
+        f, (ax1, ax2) = plt.subplots(1, 2, figsize=(22, 8))
+
+        sns.distplot(X_infected[col], ax=ax1)
+        ax1.set_title('Infected Distribution {}'.format(col))
+
+        sns.distplot(X_benign[col], ax=ax2)
+        ax2.set_title('Benign Distribution {}'.format(col))
+        plt.show()
+
+
 def elbow_plot(X, columns):
     for col in columns:
         sse = {}
@@ -93,7 +105,7 @@ def main():
     # Plot ELBOWs for Packets, Bytes and Bytes/Packet
     print('Plotting ELBOWs')
     elbow_plot(df, ['Packets', 'Bytes', 'Bytes/Packet'])
-    
+
     infected_hosts_scenario_10 = ['147.32.84.165', '147.32.84.191' '147.32.84.192', '147.32.84.193',
                                   '147.32.84.204', '147.32.84.205', '147.32.84.2056', '147.32.84.207',
                                   '147.32.84.208', '147.32.84.209']
@@ -101,6 +113,10 @@ def main():
     # Plot Barplot for different protocols
     print('Plotting Protocol Barplot')
     barplot_vis(df, ['Prot'], encoder_dict)
+
+    df_infected = df.loc[df['Label'] == 1]
+    df_benign = df.loc[df['Label'] == 0]
+    distr_plot(df_infected, df_benign, ['Bytes', 'Packets', 'Bytes/Packet'])
 
 
 if __name__ == '__main__':
