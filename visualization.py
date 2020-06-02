@@ -2,13 +2,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pyts.approximation import SymbolicAggregateApproximation
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder, KBinsDiscretizer
 
 
 def pre_process_data(src_path, dest_path):
-    # Read data in chunks because memory cannot load that much that data at once.
+    # Read CTU-13-Dataset in chunks because memory cannot load that much that CTU-13-Dataset at once.
     # At the same time, filter out background labeled flows (now in column 'Tos').
     df = pd.concat(d[d['Tos'] != 'Background'] for d in pd.read_csv(src_path, delim_whitespace=True, chunksize=10000))
     # Delete underscores from Flags (now Addr:Port)
@@ -102,10 +101,10 @@ def discretize_data(X, column, n_bins):
 
 
 def main():
-    p = 'CTU-13-Dataset/10/'
+    p = 'CTU-13-Dataset/'
 
     # Uncomment for one time loading in and pre-processing
-    # print('Loading in data...')
+    # print('Loading in CTU-13-Dataset...')
     # pre_process_data(p + 'capture20110818.pcap.netflow.labeled',
     #                  p + 'pre_processed_data.pkl')
 
