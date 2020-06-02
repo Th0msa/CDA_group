@@ -14,7 +14,7 @@ def pre_process_data(src_path, dest_path):
     df = pd.concat(d[d['Tos'] != 'Background'] for d in pd.read_csv(src_path, delim_whitespace=True,
                                                                     chunksize=10000, parse_dates=[['Date', 'flow']]))
     # Delete underscores from Flags (now Addr:Port)
-    df['Addr:Port'] = df['Addr:Port'].str.rstrip('_')
+    df['Addr:Port'] = df['Addr:Port'].str.strip('_')
     # Split IPs and ports, some have no ports and therefore will get no value
     df[['Src_IP', 'Src_Port']] = df['Prot'].str.split(':', n=1, expand=True)
     df[['Dest_IP', 'Dest_Port']] = df['IP'].str.split(':', n=1, expand=True)
@@ -102,6 +102,16 @@ def main():
     print('Preprocessing...')
     df, encoder_dict = pre_process_df(df)
 
+    # Plot Barplot for different protocols
+    print('Plotting Protocol Barplot')
+    barplot_vis(df, ['Prot'], encoder_dict)
+
+    # Plot Distributions for infected and benign cases
+    print('Plotting Distributions')
+    df_infected = df.loc[df['Label'] == 1]
+    df_benign = df.loc[df['Label'] == 0]
+    distr_plot(df_infected, df_benign, ['Bytes', 'Packets', 'Bytes/Packet', 'Durat'])
+
     # Plot ELBOWs for Packets, Bytes and Bytes/Packet
     print('Plotting ELBOWs')
     elbow_plot(df, ['Packets', 'Bytes', 'Bytes/Packet'])
@@ -109,15 +119,6 @@ def main():
     infected_hosts_scenario_10 = ['147.32.84.165', '147.32.84.191' '147.32.84.192', '147.32.84.193',
                                   '147.32.84.204', '147.32.84.205', '147.32.84.2056', '147.32.84.207',
                                   '147.32.84.208', '147.32.84.209']
-
-    # Plot Barplot for different protocols
-    print('Plotting Protocol Barplot')
-    barplot_vis(df, ['Prot'], encoder_dict)
-
-    df_infected = df.loc[df['Label'] == 1]
-    df_benign = df.loc[df['Label'] == 0]
-    distr_plot(df_infected, df_benign, ['Bytes', 'Packets', 'Bytes/Packet'])
-
 
 if __name__ == '__main__':
     main()
