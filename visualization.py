@@ -4,24 +4,22 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pyts.approximation import SymbolicAggregateApproximation
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, KBinsDiscretizer
 
 
 def pre_process_data(src_path, dest_path):
     # Read data in chunks because memory cannot load that much that data at once.
-    # At the same time parse the date and time (now flow column because data is structured weird)
-    # and filter out background labeled flows.
-    df = pd.concat(d[d['Tos'] != 'Background'] for d in pd.read_csv(src_path, delim_whitespace=True,
-                                                                    chunksize=10000, parse_dates=[['Date', 'flow']]))
+    # At the same time, filter out background labeled flows (now in column 'Tos').
+    df = pd.concat(d[d['Tos'] != 'Background'] for d in pd.read_csv(src_path, delim_whitespace=True, chunksize=10000))
     # Delete underscores from Flags (now Addr:Port)
     df['Addr:Port'] = df['Addr:Port'].str.strip('_')
     # Split IPs and ports, some have no ports and therefore will get no value
     df[['Src_IP', 'Src_Port']] = df['Prot'].str.split(':', n=1, expand=True)
     df[['Dest_IP', 'Dest_Port']] = df['IP'].str.split(':', n=1, expand=True)
     # Drop useless columns
-    df = df.drop(['Src', 'Packets', 'Bytes', 'Flows', 'Label', 'Labels', 'Prot', 'IP'], axis=1)
+    df.drop(['Src', 'Packets', 'Bytes', 'Flows', 'Label', 'Labels', 'Prot', 'IP'], axis=1, inplace=True)
     # Rename columns to actual names
-    df = df.rename(columns={'Date_flow': 'Datetime',
+    df = df.rename(columns={'flow': 'Time',
                             'start': 'Durat',
                             'Durat': 'Prot',
                             'Addr:Port': 'Flags',
@@ -30,14 +28,17 @@ def pre_process_data(src_path, dest_path):
                             'Addr:Port.1': 'Bytes',
                             'Flags': 'Flows',
                             'Tos': 'Label'})
-    # Extra feature Bytes per Packet
+
     df.to_pickle(dest_path)
 
 
 def pre_process_df(df):
+    # Extra feature Bytes per Packet
     df['Bytes/Packet'] = df.apply(lambda row: float(row['Bytes']) / row['Packets'], axis=1)
+    # Make Label discrete
     df.loc[df['Label'] == 'LEGITIMATE', 'Label'] = 0
     df.loc[df['Label'] == 'Botnet', 'Label'] = 1
+    # Encode Protocol and Flag values
     encoder_dict = {}
     obj_cols = ['Prot', 'Flags']
     for c in obj_cols:
@@ -45,6 +46,7 @@ def pre_process_df(df):
         le.fit(df[c])
         df[c] = le.transform(df[c])
         encoder_dict[c] = le
+    df.reset_index(drop=True, inplace=True)
     return df, encoder_dict
 
 
@@ -89,13 +91,23 @@ def elbow_plot(X, columns):
         plt.show()
 
 
+def discretize_data(X, column, n_bins):
+    print('Estimating...')
+    est = KBinsDiscretizer(n_bins=n_bins, encode='ordinal')
+    y = est.fit_transform(X[column].values.reshape(-1,1))
+    print('Plotting...')
+    f, (ax1) = plt.subplots(1, figsize=(11, 8))
+    sns.lineplot(x=X['Datetime'][:2000], y=y[:,0][:2000], ax=ax1)
+    plt.show()
+
+
 def main():
     p = 'CTU-13-Dataset/10/'
 
     # Uncomment for one time loading in and pre-processing
     # print('Loading in data...')
     # pre_process_data(p + 'capture20110818.pcap.netflow.labeled',
-    #                  p+ 'pre_processed_data.pkl')
+    #                  p + 'pre_processed_data.pkl')
 
     df = pd.read_pickle(p + 'pre_processed_data.pkl')
 
@@ -114,11 +126,14 @@ def main():
 
     # Plot ELBOWs for Packets, Bytes and Bytes/Packet
     print('Plotting ELBOWs')
-    elbow_plot(df, ['Packets', 'Bytes', 'Bytes/Packet'])
+    elbow_plot(df, ['Bytes/Packet'])
 
     infected_hosts_scenario_10 = ['147.32.84.165', '147.32.84.191' '147.32.84.192', '147.32.84.193',
                                   '147.32.84.204', '147.32.84.205', '147.32.84.2056', '147.32.84.207',
                                   '147.32.84.208', '147.32.84.209']
+
+    discretize_data(df, ['Bytes/Packet'], 2)
+
 
 if __name__ == '__main__':
     main()
