@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder, KBinsDiscretizer
 
 
 def pre_process_data(src_path, dest_path):
-    # Read CTU-13-Dataset in chunks because memory cannot load that much that CTU-13-Dataset at once.
+    # Read data in chunks because memory cannot load that much that data at once.
     # At the same time, filter out background labeled flows (now in column 'Tos').
     df = pd.concat(d[d['Tos'] != 'Background'] for d in pd.read_csv(src_path, delim_whitespace=True, chunksize=10000))
     # Delete underscores from Flags (now Addr:Port)
@@ -34,19 +34,29 @@ def pre_process_data(src_path, dest_path):
 def pre_process_df(df):
     # Extra feature Bytes per Packet
     df['Bytes/Packet'] = df.apply(lambda row: float(row['Bytes']) / row['Packets'], axis=1)
+
+    # Extra feature Packets per Minute
+    df['Packet/Duration'] = df.apply(lambda row: float(row['Packets']) / row['Durat'] if row['Durat'] != 0 else 0, axis=1)
+
+    # Extra feature Bytes per Minute
+    df['Bytes/Duration'] = df.apply(lambda row: float(row['Bytes']) / row['Durat'] if row['Durat'] != 0 else 0, axis=1)
+
+    # Add DateTime column
+    df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+
     # Make Label discrete
     df.loc[df['Label'] == 'LEGITIMATE', 'Label'] = 0
     df.loc[df['Label'] == 'Botnet', 'Label'] = 1
-    # Encode Protocol and Flag values
-    encoder_dict = {}
-    obj_cols = ['Prot', 'Flags']
-    for c in obj_cols:
-        le = LabelEncoder()
-        le.fit(df[c])
-        df[c] = le.transform(df[c])
-        encoder_dict[c] = le
-    df.reset_index(drop=True, inplace=True)
-    return df, encoder_dict
+
+    enc_prot = LabelEncoder()
+    enc_prot.fit(df['Prot'])
+    df['Prot_code'] = enc_prot.transform(df.Prot)
+
+    enc_flags = LabelEncoder()
+    enc_flags.fit(df['Flags'])
+    df['Flags_code'] = enc_flags.transform(df.Flags)
+
+    return df
 
 
 def barplot_vis(X, columns, encoder_dict):
@@ -76,20 +86,6 @@ def distr_plot(X_infected, X_benign, columns):
         plt.show()
 
 
-def elbow_plot(X, columns):
-    for col in columns:
-        sse = {}
-        for k in range(1, 10):
-            sse[k] = KMeans(n_clusters=k).fit(X[col].values.reshape(-1, 1)).inertia_
-
-        f, (ax1) = plt.subplots(1, figsize=(11, 8))
-        sns.lineplot(x=list(sse.keys()), y=list(sse.values()), ax=ax1)
-        ax1.set(xlabel='Number of cluster')
-        ax1.set(ylabel='SSE')
-        ax1.set_title('ELBOW plot - {}'.format(col))
-        plt.show()
-
-
 def discretize_data(X, column, n_bins):
     print('Estimating...')
     est = KBinsDiscretizer(n_bins=n_bins, encode='ordinal')
@@ -100,38 +96,44 @@ def discretize_data(X, column, n_bins):
     plt.show()
 
 
+def discretise_data(X, column_name, n_bins):
+    X[column_name + '_normalized'] = ((X[column_name] - X[column_name].min()) / (X[column_name].max() - X[column_name].min())) * 100
+    step_size = 100 / n_bins
+    bins = np.arange(0, 100 + step_size, step_size)
+    X[column_name + '_bin'] = pd.cut(x=X[column_name + '_normalized'], bins=bins, labels=np.arange(0, n_bins), include_lowest=True, right=False)
+    return X
+
+
 def main():
     p = 'CTU-13-Dataset/'
 
     # Uncomment for one time loading in and pre-processing
-    # print('Loading in CTU-13-Dataset...')
-    # pre_process_data(p + 'capture20110818.pcap.netflow.labeled',
-    #                  p + 'pre_processed_data.pkl')
+    # print('Loading in data...')
+    # pre_process_data(p + 'capture20110818.pcap.netflow.labeled', p + 'pre_processed_data.pkl')
 
     df = pd.read_pickle(p + 'pre_processed_data.pkl')
 
     print('Preprocessing...')
-    df, encoder_dict = pre_process_df(df)
+    df = pre_process_df(df)
+    discretise_data(df, 'Bytes/Packet', 10)
 
-    # Plot Barplot for different protocols
-    print('Plotting Protocol Barplot')
-    barplot_vis(df, ['Prot'], encoder_dict)
 
-    # Plot Distributions for infected and benign cases
-    print('Plotting Distributions')
-    df_infected = df.loc[df['Label'] == 1]
-    df_benign = df.loc[df['Label'] == 0]
-    distr_plot(df_infected, df_benign, ['Bytes', 'Packets', 'Bytes/Packet', 'Durat'])
 
-    # Plot ELBOWs for Packets, Bytes and Bytes/Packet
-    print('Plotting ELBOWs')
-    elbow_plot(df, ['Bytes/Packet'])
-
-    infected_hosts_scenario_10 = ['147.32.84.165', '147.32.84.191' '147.32.84.192', '147.32.84.193',
-                                  '147.32.84.204', '147.32.84.205', '147.32.84.2056', '147.32.84.207',
-                                  '147.32.84.208', '147.32.84.209']
-
-    discretize_data(df, ['Bytes/Packet'], 2)
+    # # Plot Barplot for different protocols
+    # print('Plotting Protocol Barplot')
+    # barplot_vis(df, ['Prot'], encoder_dict)
+    #
+    # # Plot Distributions for infected and benign cases
+    # print('Plotting Distributions')
+    # df_infected = df.loc[df['Label'] == 1]
+    # df_benign = df.loc[df['Label'] == 0]
+    # distr_plot(df_infected, df_benign, ['Bytes', 'Packets', 'Bytes/Packet', 'Durat'])
+    #
+    # infected_hosts_scenario_10 = ['147.32.84.165', '147.32.84.191' '147.32.84.192', '147.32.84.193',
+    #                               '147.32.84.204', '147.32.84.205', '147.32.84.2056', '147.32.84.207',
+    #                               '147.32.84.208', '147.32.84.209']
+    #
+    # discretize_data(df, ['Bytes/Packet'], 2)
 
 
 if __name__ == '__main__':
