@@ -34,6 +34,7 @@ def pre_process_data(src_path, dest_path):
 def pre_process_df(df):
     # Extra feature Bytes per Packet
     df['Bytes/Packet'] = df.apply(lambda row: float(row['Bytes']) / row['Packets'], axis=1)
+<<<<<<< HEAD
 
     # Extra feature Packets per Minute
     df['Packet/Duration'] = df.apply(lambda row: float(row['Packets']) / row['Durat'] if row['Durat'] != 0 else 0, axis=1)
@@ -44,6 +45,10 @@ def pre_process_df(df):
     # Add DateTime column
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
 
+=======
+    # Add DateTime column
+    df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+>>>>>>> master
     # Make Label discrete
     df.loc[df['Label'] == 'LEGITIMATE', 'Label'] = 0
     df.loc[df['Label'] == 'Botnet', 'Label'] = 1
